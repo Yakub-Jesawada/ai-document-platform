@@ -17,8 +17,8 @@ from sqlalchemy import select
 
 from database import settings, get_db
 from dependencies import get_current_active_user
-from models.document import Document, Collection
-from models.user import User
+from models.document import Document
+from models.user import User, Collection
 from schemas.document import (
     DocumentResponseSchema,
     DocumentListResponseSchema,
