@@ -267,3 +267,41 @@ async def download_document(
         filename=document.filename,
         media_type="application/octet-stream",
     )
+
+
+# -----------------------------------------
+# Delete a document
+# -----------------------------------------
+@router.delete("/{document_uuid}", status_code=status.HTTP_200_OK)
+async def delete_document(
+    document_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Delete a document.
+    - If remove_from_all_collections=True → delete document completely + remove links + delete file
+    - Otherwise, document remains in other collections
+    """
+    stmt = select(Document).where(
+        Document.uuid == document_uuid,
+        Document.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Remove all links
+    document.collections.clear()
+
+    # Delete document row
+    await db.delete(document)
+
+    await db.commit()
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="Document deleted successfully",
+        results=None
+    )

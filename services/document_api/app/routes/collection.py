@@ -186,3 +186,91 @@ async def add_documents_to_collection(
         detail="Documents added to collection",
         results=CollectionDocumentResponseSchema.model_validate(collection),
     )
+
+
+# -----------------------------------------
+# Remove document(s) from a collection
+# -----------------------------------------
+@router.post("/{collection_uuid}/documents/remove", status_code=status.HTTP_200_OK)
+async def remove_documents_from_collection(
+    collection_uuid: UUID,
+    payload: CollectionAddDocuments,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Remove document(s) from a collection only.
+    Document itself is not deleted and may exist in other collections.
+    """
+    if not payload.document_uuids:
+        raise HTTPException(status_code=400, detail="document_uuids cannot be empty")
+
+    # Fetch collection
+    stmt = select(Collection).where(
+        Collection.uuid == collection_uuid,
+        Collection.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Fetch documents (ownership check)
+    stmt = select(Document).where(
+        Document.uuid.in_(payload.document_uuids),
+        Document.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    documents = result.scalars().all()
+
+    if not documents:
+        raise HTTPException(status_code=400, detail="No valid documents found")
+
+    # Remove documents from collection
+    for doc in documents:
+        if doc in collection.documents:
+            collection.documents.remove(doc)
+
+    await db.commit()
+    await db.refresh(collection)
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail=f"Removed {len(documents)} document(s) from collection",
+        results=CollectionDocumentResponseSchema.model_validate(collection)
+    )
+
+
+@router.delete("/{collection_uuid}", status_code=status.HTTP_200_OK)
+async def delete_collection(
+    collection_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Hard delete a collection.
+    Documents remain intact.
+    """
+    stmt = select(Collection).where(
+        Collection.uuid == collection_uuid,
+        Collection.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Remove all links to documents
+    collection.documents.clear()
+
+    # Delete the collection row
+    await db.delete(collection)
+    await db.commit()
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="Collection deleted successfully",
+        results=None
+    )
