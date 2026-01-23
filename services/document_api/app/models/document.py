@@ -7,7 +7,7 @@ from .base import IDMixin, TimeMixin, BaseModel
 
 
 
-class CollectionDocumentLink(IDMixin, TimeMixin, BaseModel, table=True):
+class CollectionDocumentLink(TimeMixin, BaseModel, table=True):
     __tablename__ = "collection_documents"
 
     collection_id: int = Field(

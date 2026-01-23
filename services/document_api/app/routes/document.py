@@ -1,4 +1,5 @@
 import os
+import json
 from uuid import UUID
 from typing import List, Optional
 
@@ -13,11 +14,12 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
 from database import settings, get_db
 from dependencies import get_current_active_user
-from models.document import Document
+from models.document import Document, CollectionDocumentLink
 from models.user import User, Collection
 from schemas.document import (
     DocumentResponseSchema,
@@ -98,7 +100,7 @@ async def upload_documents(
             Collection.uuid == collection_uuid,
             Collection.user_id == current_user.id,
             Collection.is_deleted == False,
-        )
+        ).options(selectinload(Collection.documents))
         result = await db.execute(stmt)
         collection = result.scalar_one_or_none()
 
@@ -283,9 +285,13 @@ async def delete_document(
     - If remove_from_all_collections=True → delete document completely + remove links + delete file
     - Otherwise, document remains in other collections
     """
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id
+    stmt = (
+        select(Document)
+        .options(selectinload(Document.collections))
+        .where(
+            Document.uuid == document_uuid,
+            Document.user_id == current_user.id
+        )
     )
     result = await db.execute(stmt)
     document = result.scalar_one_or_none()
@@ -298,7 +304,6 @@ async def delete_document(
 
     # Delete document row
     await db.delete(document)
-
     await db.commit()
     return StandardResponse(
         level=ResponseLevel.SUCCESS,

@@ -57,9 +57,6 @@ class DocumentUploadResponseSchema(BaseModel):
 class CollectionCreate(BaseModel):
     name: str
 
-    class Config:
-        from_attributes = True
-
 
 class CollectionAddDocuments(BaseModel):
     document_uuids: Optional[List[UUID]] = Field(default_factory=list)
@@ -83,3 +80,7 @@ class CollectionDocumentResponseSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class FileItem(BaseModel):
+    filename: str
+    category: str

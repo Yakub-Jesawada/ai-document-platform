@@ -153,7 +153,7 @@ async def add_documents_to_collection(
         Collection.uuid == collection_uuid,
         Collection.user_id == current_user.id,
         Collection.is_deleted == False,
-    )
+    ).options(selectinload(Collection.documents))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
 
@@ -209,7 +209,7 @@ async def remove_documents_from_collection(
     stmt = select(Collection).where(
         Collection.uuid == collection_uuid,
         Collection.user_id == current_user.id
-    )
+    ).options(selectinload(Collection.documents))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
 
@@ -255,7 +255,7 @@ async def delete_collection(
     stmt = select(Collection).where(
         Collection.uuid == collection_uuid,
         Collection.user_id == current_user.id
-    )
+    ).options(selectinload(Collection.documents))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
 
