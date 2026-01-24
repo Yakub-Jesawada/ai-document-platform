@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-
+from helpers import get_s3_storage
 
 class DocumentCreate(BaseModel):
     filename: str
@@ -22,25 +22,28 @@ class DocumentResponseSchema(BaseModel):
     file_type: str
     document_category: str
     upload_status: str
-    storage_uri: str
     page_count: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    # 👇 INTERNAL ONLY (used to generate presigned URL)
+    storage_uri: str
 
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        """
+        Ephemeral presigned URL generated at response time.
+        """
+        storage = get_s3_storage()
+        return storage.generate_presigned_url(self.storage_uri)
 
-class DocumentListResponseSchema(BaseModel):
-    uuid: UUID
-    filename: str
-    file_type: str
-    document_category: str
-    upload_status: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "fields": {
+            "storage_uri": {"exclude": True},
+        },
+    }
 
 
 class DocumentUploadResponseSchema(BaseModel):
@@ -76,7 +79,7 @@ class CollectionDocumentResponseSchema(BaseModel):
     uuid: UUID
     name: str
     created_at: datetime
-    documents: List[DocumentListResponseSchema]
+    documents: List[DocumentResponseSchema]
 
     class Config:
         from_attributes = True

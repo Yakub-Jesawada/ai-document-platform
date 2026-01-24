@@ -23,10 +23,10 @@ from models.document import Document, CollectionDocumentLink
 from models.user import User, Collection
 from schemas.document import (
     DocumentResponseSchema,
-    DocumentListResponseSchema,
     DocumentUploadResponseSchema,
 )
 from schemas.base import StandardResponse, ResponseLevel
+from helpers import upload_file_to_s3, get_s3_storage
 
 
 router = APIRouter(
@@ -65,6 +65,8 @@ async def get_or_create_default_collection(
         name="default_collection",
     )
     db.add(collection)
+    collection.documents = []
+
     await db.flush()  # get PK without committing
 
     return collection
@@ -86,15 +88,7 @@ async def upload_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Upload one or more documents.
-    - If collection_uuid is provided → add documents to that collection
-    - Else → add documents to default_collection (auto-created)
-    """
-
-    # -----------------------------------------------------
-    # Resolve collection
-    # -----------------------------------------------------
+    # resolve collection
     if collection_uuid:
         stmt = select(Collection).where(
             Collection.uuid == collection_uuid,
@@ -105,63 +99,37 @@ async def upload_documents(
         collection = result.scalar_one_or_none()
 
         if not collection:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Collection not found",
-            )
+            raise HTTPException(status_code=404, detail="Collection not found")
     else:
         collection = await get_or_create_default_collection(db, current_user)
 
-    # -----------------------------------------------------
-    # Prepare filesystem
-    # -----------------------------------------------------
-    user_dir = os.path.join(BASE_FILE_PATH, str(current_user.uuid))
-    os.makedirs(user_dir, exist_ok=True)
+    uploaded_documents = []
 
-    uploaded_documents: List[Document] = []
-
-    # -----------------------------------------------------
-    # Save files + create documents
-    # -----------------------------------------------------
     for file in files:
-        file_type = get_file_extension(file.filename)
-        file_path = os.path.join(user_dir, file.filename)
-
-        try:
-            contents = await file.read()
-            with open(file_path, "wb") as f:
-                f.write(contents)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to save file {file.filename}: {str(e)}",
-            )
+        s3_key = await upload_file_to_s3(
+            file=file,
+            user_uuid=current_user.uuid,
+        )
 
         document = Document(
             user_id=current_user.id,
             filename=file.filename,
-            file_type=file_type,
+            file_type=get_file_extension(file.filename),
             document_category=document_category,
             upload_status="uploaded",
-            storage_uri=file_path,
+            storage_uri=s3_key,   # ✅ stable S3 key
         )
 
         db.add(document)
         uploaded_documents.append(document)
 
-    # -----------------------------------------------------
-    # Link documents to collection & commit once
-    # -----------------------------------------------------
-    await db.flush()  # assign IDs
+    await db.flush()
 
     if collection:
         collection.documents.extend(uploaded_documents)
 
     await db.commit()
 
-    # -----------------------------------------------------
-    # Response
-    # -----------------------------------------------------
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
         detail=f"{len(uploaded_documents)} document(s) uploaded successfully",
@@ -185,7 +153,7 @@ async def upload_documents(
 @router.get(
     "/",
     status_code=status.HTTP_200_OK,
-    response_model=StandardResponse[List[DocumentListResponseSchema]],
+    response_model=StandardResponse[List[DocumentResponseSchema]],
 )
 async def list_documents(
     db: AsyncSession = Depends(get_db),
@@ -202,7 +170,7 @@ async def list_documents(
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
         detail=f"Found {len(documents)} documents",
-        results=[DocumentListResponseSchema.model_validate(doc) for doc in documents],
+        results=[DocumentResponseSchema.model_validate(doc) for doc in documents],
     )
 
 
@@ -239,38 +207,6 @@ async def get_document_detail(
     )
 
 
-# ---------------------------------------------------------
-# Download document
-# ---------------------------------------------------------
-
-@router.get("/{document_uuid}/download", status_code=status.HTTP_200_OK)
-async def download_document(
-    document_uuid: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id,
-        Document.is_deleted == False,
-    )
-
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    if not os.path.exists(document.storage_uri):
-        raise HTTPException(status_code=404, detail="File not found on server")
-
-    return FileResponse(
-        path=document.storage_uri,
-        filename=document.filename,
-        media_type="application/octet-stream",
-    )
-
-
 # -----------------------------------------
 # Delete a document
 # -----------------------------------------
@@ -280,17 +216,12 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Delete a document.
-    - If remove_from_all_collections=True → delete document completely + remove links + delete file
-    - Otherwise, document remains in other collections
-    """
     stmt = (
         select(Document)
         .options(selectinload(Document.collections))
         .where(
             Document.uuid == document_uuid,
-            Document.user_id == current_user.id
+            Document.user_id == current_user.id,
         )
     )
     result = await db.execute(stmt)
@@ -299,14 +230,19 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Remove all links
+    # delete from S3
+    storage = get_s3_storage()
+    storage.delete_file(document.storage_uri)
+
+    # remove collection links
     document.collections.clear()
 
-    # Delete document row
+    # delete DB row
     await db.delete(document)
     await db.commit()
+
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
         detail="Document deleted successfully",
-        results=None
+        results=None,
     )
