@@ -63,12 +63,10 @@ async def get_or_create_default_collection(
     collection = Collection(
         user_id=user.id,
         name="default_collection",
+        documents=[],  # 👈 important
     )
-    db.add(collection)
 
     await db.flush()  # get PK without committing
-    # load document relationship explicitly no lazy loading
-    await db.refresh(collection, attribute_names=["documents"])
 
     return collection
 
