@@ -23,4 +23,5 @@ dependencies = [
     "python-multipart>=0.0.6",  # Required for file uploads
     "python-jose[cryptography]>=3.3.0",  # JWT handling
     "boto3==1.42.33",
+    "aiokafka==0.13.0"
 ]

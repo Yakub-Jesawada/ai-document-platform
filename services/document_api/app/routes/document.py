@@ -27,7 +27,7 @@ from schemas.document import (
 )
 from schemas.base import StandardResponse, ResponseLevel
 from helpers import upload_file_to_s3, get_s3_storage
-
+from kafka.publisher import publish_document_uploaded
 
 router = APIRouter(
     prefix="/documents",
@@ -53,7 +53,7 @@ async def get_or_create_default_collection(
         Collection.user_id == user.id,
         Collection.name == "default_collection",
         Collection.is_deleted == False,
-    )
+    ).options(selectinload(Collection.documents))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
 
@@ -128,6 +128,9 @@ async def upload_documents(
         collection.documents.extend(uploaded_documents)
 
     await db.commit()
+    
+    for document in uploaded_documents:
+        await publish_document_uploaded(document, current_user)
 
     return StandardResponse(
         level=ResponseLevel.SUCCESS,

@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str    
     BASE_FILE_PATH: str
+    KAFKA_BROKER_URL: str
+    KAFKA_TOPIC: str
+    KAFKA_FASTAPI_PRODUCER_CLIENT_ID: str
 
 
     # JWT Settings
