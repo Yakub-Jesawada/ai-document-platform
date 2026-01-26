@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from database import engine, settings
 from routes import auth, user, document, collection
+from kafka.producer import start_producer, stop_producer
 
 app = FastAPI(
     title="API services for document processing platform",
@@ -11,6 +12,14 @@ app = FastAPI(
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.on_event("startup")
+async def startup():
+    await start_producer()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await stop_producer()
 
 # Include routers
 app.include_router(auth.router)
