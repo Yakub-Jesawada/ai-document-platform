@@ -1,16 +1,7 @@
-import os
-from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
 from typing import Optional
-
-load_dotenv()
-
-S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
-S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
-S3_BUCKET_REGION = os.getenv("S3_BUCKET_REGION", "us-east-1")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-
+from env import S3_ACCESS_KEY, S3_BUCKET_NAME, S3_BUCKET_REGION, S3_SECRET_ACCESS_KEY
 
 class S3Storage:
     def __init__(self, location: str = ""):

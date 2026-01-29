@@ -22,6 +22,16 @@ class DocumentCategory(str, Enum):
     OTHER = "other"
 
 
+class ProcessingStatus(str, Enum):
+    UPLOADED = "uploaded"
+    OCR_IN_PROGRESS = "ocr_in_progress"
+    OCR_DONE = "ocr_done"
+    EMBEDDING_IN_PROGRESS = "embedding_in_progress"
+    EMBEDDING_DONE = "embedding_done"
+    OCR_FAILED = "ocr_failed"
+    EMBEDDING_FAILED = "embedding_failed"
+
+
 class BBox(TypedDict):
     x: float
     y: float
@@ -68,7 +78,15 @@ class Document(IDMixin, TimeMixin, BaseModel, table=True):
         sa_column=Column(JSONB),
         default_factory=dict
     )
-
+    # flags (fast filtering)
+    ocr_completed: bool = Field(default=False)
+    embedding_completed: bool = Field(default=False)
+    # pipeline status
+    status: ProcessingStatus = Field(
+        sa_column=Column(
+            SAEnum(ProcessingStatus, native_enum=False)
+        )
+    )
     collections: List["Collection"] = Relationship(
         back_populates="documents",
         link_model=CollectionDocumentLink

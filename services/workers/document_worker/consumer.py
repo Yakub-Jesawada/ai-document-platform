@@ -23,7 +23,7 @@ async def consume():
 
             if payload.get("event_type") == DOCUMENT_UPLOAD_EVENT:
                 event = DocumentUploaded(**payload)
-                handle_document_upload(event)
+                await handle_document_upload(event)
 
     finally:
         await consumer.stop()
