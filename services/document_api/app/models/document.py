@@ -1,6 +1,5 @@
 # app/models/document.py
-import uuid
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TypedDict
 from sqlmodel import Field, Relationship
 from .base import IDMixin, TimeMixin, BaseModel
 from sqlalchemy import Enum as SAEnum
@@ -21,6 +20,23 @@ class DocumentCategory(str, Enum):
     MEDICAL = "medical"
     FINANCIAL = "financial"
     OTHER = "other"
+
+
+class ProcessingStatus(str, Enum):
+    UPLOADED = "uploaded"
+    OCR_IN_PROGRESS = "ocr_in_progress"
+    OCR_DONE = "ocr_done"
+    EMBEDDING_IN_PROGRESS = "embedding_in_progress"
+    EMBEDDING_DONE = "embedding_done"
+    OCR_FAILED = "ocr_failed"
+    EMBEDDING_FAILED = "embedding_failed"
+
+
+class BBox(TypedDict):
+    x: float
+    y: float
+    w: float
+    h: float
 
 
 
@@ -62,8 +78,60 @@ class Document(IDMixin, TimeMixin, BaseModel, table=True):
         sa_column=Column(JSONB),
         default_factory=dict
     )
-
+    # flags (fast filtering)
+    ocr_completed: bool = Field(default=False)
+    embedding_completed: bool = Field(default=False)
+    # pipeline status
+    status: ProcessingStatus = Field(
+        sa_column=Column(
+            SAEnum(ProcessingStatus, native_enum=False)
+        )
+    )
     collections: List["Collection"] = Relationship(
         back_populates="documents",
         link_model=CollectionDocumentLink
     )
+
+    pages: List["DocumentPage"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+class DocumentPage(IDMixin, TimeMixin, BaseModel, table=True):
+    __tablename__ = "document_pages"
+
+    document_id: int = Field(foreign_key="documents.id", index=True)
+    page_number: int = Field(index=True)
+    # Page dimensions (coordinate space)
+    width: float
+    height: float
+    confidence: Optional[float] = Field(default=None)
+    # Relationships
+    document: Optional[Document] = Relationship(back_populates="pages")
+    lines: List["DocumentLine"] = Relationship(back_populates="page", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+
+
+
+class DocumentLine(IDMixin, TimeMixin, BaseModel, table=True):
+    __tablename__ = "document_lines"
+
+    page_id: int = Field(foreign_key="document_pages.id", index=True)
+    text: str
+    confidence: Optional[float] = Field(default=None)
+    # Normalized bounding box
+    bbox: BBox = Field(sa_column=Column(JSONB))
+    # Relationships
+    page: Optional[DocumentPage] = Relationship(back_populates="lines")
+    words: List["DocumentWord"] = Relationship(back_populates="line", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+
+
+class DocumentWord(IDMixin, TimeMixin, BaseModel, table=True):
+    __tablename__ = "document_words"
+
+    line_id: int = Field(foreign_key="document_lines.id", index=True)
+    text: str
+    confidence: Optional[float] = Field(default=None)
+    # Normalized bounding box
+    bbox: BBox = Field(sa_column=Column(JSONB))
+    # Relationships
+    line: Optional[DocumentLine] = Relationship(back_populates="words")

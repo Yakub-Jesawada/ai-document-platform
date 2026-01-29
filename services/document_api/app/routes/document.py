@@ -202,6 +202,8 @@ async def get_document_detail(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    await publish_document_uploaded(document, current_user)
+
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
         detail="Document retrieved successfully",
