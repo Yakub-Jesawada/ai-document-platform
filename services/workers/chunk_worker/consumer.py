@@ -9,7 +9,7 @@ async def consume():
         "document-chunk",
         bootstrap_servers="localhost:9092",
         group_id="document-workers",
-        client_id="document-worker-2",
+        client_id="chunk-worker",
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 

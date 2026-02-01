@@ -11,7 +11,7 @@ async def consume():
         "document-ocr",
         bootstrap_servers="localhost:9092",
         group_id="document-workers",
-        client_id="document-worker-1",
+        client_id="ocr-worker",
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
