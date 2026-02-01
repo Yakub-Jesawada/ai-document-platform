@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from database import engine, settings
 from routes import auth, user, document, collection
-from kafka.producer import start_producer, stop_producer
+from shared.kafka.producer import start_producer, stop_producer
 
 app = FastAPI(
     title="API services for document processing platform",

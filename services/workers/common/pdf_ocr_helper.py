@@ -4,9 +4,9 @@ import asyncio
 import logging
 from sqlmodel import select, delete
 from collections import defaultdict
-from workers.database import get_kafka_db_session
-from workers.model import Document, DocumentPage, DocumentLine, DocumentWord, ProcessingStatus
-from workers.env import TEXTRACT_SECRET_ACCESS_KEY, TEXTRACT_ACCESS_KEY, TEXTRACT_BUCKET_NAME, TEXTRACT_BUCKET_REGION
+from workers.common.database import get_kafka_db_session
+from workers.common.model import Document, DocumentPage, DocumentLine, DocumentWord, ProcessingStatus
+from workers.common.env import TEXTRACT_SECRET_ACCESS_KEY, TEXTRACT_ACCESS_KEY, TEXTRACT_BUCKET_NAME, TEXTRACT_BUCKET_REGION
 
 
 logger = logging.getLogger(__name__)
@@ -266,12 +266,3 @@ async def persist_ocr_result(document_uuid, ocr_pages: dict):
                     await fail_session.commit()
 
             raise
-
-
-class PdfDocumentProcessor:
-
-    async def extract(self, document_uuid, s3_key) -> dict:
-        return await extract_text(document_uuid, s3_key)
-
-    async def persist(self, document_uuid, extracted_data: dict):
-        await persist_ocr_result(document_uuid, extracted_data)

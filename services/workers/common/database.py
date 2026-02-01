@@ -2,7 +2,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from contextlib import asynccontextmanager
-from workers.env import DATABASE_URL
+from workers.common.env import DATABASE_URL
 
 # For PostgreSQL or other database systems (for production)
 engine = create_async_engine(
