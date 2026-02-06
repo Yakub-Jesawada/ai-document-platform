@@ -25,4 +25,5 @@ dependencies = [
     "boto3==1.42.33",
     "aiokafka==0.13.0",
     "pgvector>=0.4.2",
+    "aiohttp>=3.13.3"
 ]

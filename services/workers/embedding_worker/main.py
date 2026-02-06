@@ -1,6 +1,5 @@
-# workers/document_worker/main.py
 import asyncio
-from workers.chunk_worker.consumer import consume
+from workers.embedding_worker.consumer import consume
 import logging
 
 logging.basicConfig(

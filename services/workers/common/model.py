@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Enum as SAEnum
 from uuid import UUID, uuid4
 from datetime import datetime
-from pgvector.vector import Vector
+from pgvector.sqlalchemy import Vector
 
 class BaseModel(SQLModel):
     """Base class for all SQLModel models."""
@@ -171,11 +171,11 @@ class DocumentChunk(IDMixin, TimeMixin, BaseModel, table=True):
 
     chunk_index: int
     text: str
-    embedding: list[float] | None = Field(
-        default=None,
-        sa_column=Column(Vector(384))
-    )
     start_page: Optional[int]
     end_page: Optional[int]
 
     token_count: Optional[int]
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(384))
+    )

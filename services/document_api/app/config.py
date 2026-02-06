@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     KAFKA_BROKER_URL: str
     OCR_WORKER_TOPIC: str
     CHUNK_WORKER_TOPIC: str
+    EMBEDDING_WORKER_TOPIC: str
     KAFKA_FASTAPI_PRODUCER_CLIENT_ID: str
 
 
