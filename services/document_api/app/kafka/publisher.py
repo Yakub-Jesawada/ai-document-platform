@@ -2,8 +2,9 @@
 from uuid import uuid4
 from datetime import datetime, timezone
 from shared.events.document_uploaded import DocumentUploaded
+from shared.events.document_textracted import DocumentTextracted
 from config import settings
-import kafka.producer as producer_module
+import shared.kafka.producer as producer_module
 
 
 async def publish_document_uploaded(document, user):
@@ -18,6 +19,21 @@ async def publish_document_uploaded(document, user):
     )
     producer = producer_module.require_producer()
     await producer.send_and_wait(
-        settings.KAFKA_TOPIC,
-        value=event.model_dump(mode="json"),  # 🔑 serializes UUID & datetime
+        settings.OCR_WORKER_TOPIC,
+        value=event.model_dump(mode="json"),
+    )
+
+
+async def publish_document_textracted(document):
+    now = datetime.now(timezone.utc)
+
+    event = DocumentTextracted(
+        event_id=uuid4(),
+        document_uuid=document.uuid,
+        occurred_at=now,
+    )
+    producer = producer_module.require_producer()
+    await producer.send_and_wait(
+        settings.CHUNK_WORKER_TOPIC,
+        value=event.model_dump(mode="json"),
     )

@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str    
     BASE_FILE_PATH: str
     KAFKA_BROKER_URL: str
-    KAFKA_TOPIC: str
+    OCR_WORKER_TOPIC: str
+    CHUNK_WORKER_TOPIC: str
     KAFKA_FASTAPI_PRODUCER_CLIENT_ID: str
 
 

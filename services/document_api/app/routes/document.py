@@ -27,7 +27,7 @@ from schemas.document import (
 )
 from schemas.base import StandardResponse, ResponseLevel
 from helpers import upload_file_to_s3, get_s3_storage
-from kafka.publisher import publish_document_uploaded
+from kafka.publisher import publish_document_uploaded, publish_document_textracted
 
 router = APIRouter(
     prefix="/documents",
@@ -208,6 +208,74 @@ async def get_document_detail(
         level=ResponseLevel.SUCCESS,
         detail="Document retrieved successfully",
         results=DocumentResponseSchema.model_validate(document),
+    )
+
+
+# ---------------------------------------------------------
+# Trigger OCR for an already uploaded document
+# ---------------------------------------------------------
+
+@router.post(
+    "/{document_uuid}/ocr",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=StandardResponse,
+)
+async def trigger_ocr(
+    document_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(Document).where(
+        Document.uuid == document_uuid,
+        Document.user_id == current_user.id,
+        Document.is_deleted == False,
+    )
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await publish_document_uploaded(document, current_user)
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="OCR triggered successfully",
+        results=None,
+    )
+
+
+# ---------------------------------------------------------
+# Trigger chunking (skip OCR)
+# ---------------------------------------------------------
+
+@router.post(
+    "/{document_uuid}/chunk",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=StandardResponse,
+)
+async def trigger_chunking(
+    document_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(Document).where(
+        Document.uuid == document_uuid,
+        Document.user_id == current_user.id,
+        Document.is_deleted == False,
+    )
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await publish_document_textracted(document)
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="Chunking triggered successfully",
+        results=None,
     )
 
 

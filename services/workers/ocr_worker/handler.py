@@ -1,10 +1,15 @@
 from shared.events.document_uploaded import DocumentUploaded
+from shared.events.document_textracted import DocumentTextracted
 from sqlmodel import select
-from workers.database import get_kafka_db_session
-from workers.model import Document, ProcessingStatus
-from document_processor_registry import PROCESSOR_REGISTRY
+from workers.common.database import get_kafka_db_session
+from workers.common.model import Document, ProcessingStatus
+from datetime import datetime, timezone
+from workers.common.document_processor_registry import PROCESSOR_REGISTRY
+from shared.constant import DOCUMENT_TEXTRACTED
+from shared.kafka.producer import require_producer
 import logging
-import json
+from uuid import uuid4
+
 from pathlib import Path
 
 # Directory of the current file
@@ -36,6 +41,15 @@ async def handle_document_upload(event: DocumentUploaded):
     try:
         extracted_data = await processor.extract(document_uuid, storage_uri)
         await processor.persist(document_uuid, extracted_data)
+        now = datetime.now(timezone.utc)
+        event = DocumentTextracted(
+            event_id=uuid4(),
+            document_uuid=document.uuid,
+            occurred_at=now,
+            uploaded_at=now,
+        )
+        producer = require_producer()
+        await producer.send_and_wait(DOCUMENT_TEXTRACTED, event.model_dump(mode="json"))
 
     except Exception:
         async with get_kafka_db_session() as session:

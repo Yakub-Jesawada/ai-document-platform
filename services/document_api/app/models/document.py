@@ -6,6 +6,8 @@ from sqlalchemy import Enum as SAEnum
 from enum import Enum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column
+from pgvector.sqlalchemy import Vector
+
 
 class UploadStatus(str, Enum):
     UPLOADED = "uploaded"
@@ -30,7 +32,8 @@ class ProcessingStatus(str, Enum):
     EMBEDDING_DONE = "embedding_done"
     OCR_FAILED = "ocr_failed"
     EMBEDDING_FAILED = "embedding_failed"
-
+    CHUNKING_FAILED = "chunking_failed"
+    CHUNKING_DONE = "chunking_done"
 
 class BBox(TypedDict):
     x: float
@@ -80,6 +83,7 @@ class Document(IDMixin, TimeMixin, BaseModel, table=True):
     )
     # flags (fast filtering)
     ocr_completed: bool = Field(default=False)
+    chunk_completed: bool = Field(default=False)
     embedding_completed: bool = Field(default=False)
     # pipeline status
     status: ProcessingStatus = Field(
@@ -135,3 +139,25 @@ class DocumentWord(IDMixin, TimeMixin, BaseModel, table=True):
     bbox: BBox = Field(sa_column=Column(JSONB))
     # Relationships
     line: Optional[DocumentLine] = Relationship(back_populates="words")
+
+
+class DocumentChunk(IDMixin, TimeMixin, BaseModel, table=True):
+    __tablename__ = "document_chunks"
+
+    document_id: int = Field(
+        foreign_key="documents.id",
+        index=True
+    )
+
+    chunk_index: int
+    text: str
+
+    start_page: Optional[int]
+    end_page: Optional[int]
+
+    token_count: Optional[int]
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(384))
+    )
+

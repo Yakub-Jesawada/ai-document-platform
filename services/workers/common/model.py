@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Enum as SAEnum
 from uuid import UUID, uuid4
 from datetime import datetime
+from pgvector.vector import Vector
 
 class BaseModel(SQLModel):
     """Base class for all SQLModel models."""
@@ -60,6 +61,9 @@ class ProcessingStatus(str, Enum):
     EMBEDDING_DONE = "embedding_done"
     OCR_FAILED = "ocr_failed"
     EMBEDDING_FAILED = "embedding_failed"
+    CHUNKING_FAILED = "chunking_failed"
+    CHUNKING_DONE = "chunking_done"
+    CHUNKING_IN_PROGRESS = "chunking_in_progress"
 
 
 # ======================================================
@@ -94,6 +98,7 @@ class Document(IDMixin, TimeMixin, BaseModel, table=True):
     )
     # flags (fast filtering)
     ocr_completed: bool = Field(default=False)
+    chunk_completed: bool = Field(default=False)
     embedding_completed: bool = Field(default=False)
     # pipeline status
     status: ProcessingStatus = Field(
@@ -151,3 +156,26 @@ class DocumentWord(IDMixin, TimeMixin, BaseModel, table=True):
     bbox: Dict[str, Any] = Field(
         sa_column=Column(JSONB)
     )
+
+# ======================================================
+# Document chunks
+# ======================================================
+
+class DocumentChunk(IDMixin, TimeMixin, BaseModel, table=True):
+    __tablename__ = "document_chunks"
+
+    document_id: int = Field(
+        foreign_key="documents.id",
+        index=True
+    )
+
+    chunk_index: int
+    text: str
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(384))
+    )
+    start_page: Optional[int]
+    end_page: Optional[int]
+
+    token_count: Optional[int]
