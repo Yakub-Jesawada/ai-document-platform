@@ -1,9 +1,14 @@
 from shared.events.document_textracted import DocumentTextracted
+from shared.events.document_chunked import DocumentChunked
 from sqlmodel import select
 from workers.common.database import get_kafka_db_session
 from workers.common.helper import get_document_id
 from workers.common.model import Document, ProcessingStatus
 from workers.common.document_processor_registry import PROCESSOR_REGISTRY
+from workers.common.env import EMBEDDING_WORKER_TOPIC
+from shared.kafka.producer import require_producer
+from datetime import datetime, timezone
+from uuid import uuid4
 import logging
 from pathlib import Path
 
@@ -16,7 +21,7 @@ logger = logging.getLogger(__name__)
 async def handle_document_chunking(event: DocumentTextracted):
     document_uuid = event.document_uuid
 
-   
+
     processor = PROCESSOR_REGISTRY.get('chunk')
 
     try:
@@ -26,6 +31,19 @@ async def handle_document_chunking(event: DocumentTextracted):
         logger.info(f'chunks created saving chunks in db for document uuid: {document_uuid}')
         await processor.persist_chunks(document_id, chunks)
         logger.info(f'Chunking completed for document uuid: {document_uuid}')
+
+        now = datetime.now(timezone.utc)
+        chunked_event = DocumentChunked(
+            event_id=uuid4(),
+            document_uuid=document_uuid,
+            occurred_at=now,
+        )
+        producer = require_producer()
+        await producer.send_and_wait(
+            EMBEDDING_WORKER_TOPIC,
+            value=chunked_event.model_dump(mode="json"),
+        )
+        logger.info(f'DocumentChunked event published for document uuid: {document_uuid}')
 
     except Exception:
         async with get_kafka_db_session() as session:

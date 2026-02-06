@@ -3,6 +3,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from shared.events.document_uploaded import DocumentUploaded
 from shared.events.document_textracted import DocumentTextracted
+from shared.events.document_chunked import DocumentChunked
 from config import settings
 import shared.kafka.producer as producer_module
 
@@ -35,5 +36,20 @@ async def publish_document_textracted(document):
     producer = producer_module.require_producer()
     await producer.send_and_wait(
         settings.CHUNK_WORKER_TOPIC,
+        value=event.model_dump(mode="json"),
+    )
+
+
+async def publish_document_chunked(document):
+    now = datetime.now(timezone.utc)
+
+    event = DocumentChunked(
+        event_id=uuid4(),
+        document_uuid=document.uuid,
+        occurred_at=now,
+    )
+    producer = producer_module.require_producer()
+    await producer.send_and_wait(
+        settings.EMBEDDING_WORKER_TOPIC,
         value=event.model_dump(mode="json"),
     )

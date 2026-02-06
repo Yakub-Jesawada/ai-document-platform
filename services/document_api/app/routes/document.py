@@ -27,7 +27,7 @@ from schemas.document import (
 )
 from schemas.base import StandardResponse, ResponseLevel
 from helpers import upload_file_to_s3, get_s3_storage
-from kafka.publisher import publish_document_uploaded, publish_document_textracted
+from kafka.publisher import publish_document_uploaded, publish_document_textracted, publish_document_chunked
 
 router = APIRouter(
     prefix="/documents",
@@ -275,6 +275,40 @@ async def trigger_chunking(
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
         detail="Chunking triggered successfully",
+        results=None,
+    )
+
+
+# ---------------------------------------------------------
+# Trigger embedding (skip OCR + chunking)
+# ---------------------------------------------------------
+
+@router.post(
+    "/{document_uuid}/embed",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=StandardResponse,
+)
+async def trigger_embedding(
+    document_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(Document).where(
+        Document.uuid == document_uuid,
+        Document.user_id == current_user.id,
+        Document.is_deleted == False,
+    )
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await publish_document_chunked(document)
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="Embedding triggered successfully",
         results=None,
     )
 
