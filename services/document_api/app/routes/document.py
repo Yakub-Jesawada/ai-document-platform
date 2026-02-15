@@ -18,16 +18,17 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
 from database import settings, get_db
-from dependencies import get_current_active_user
-from models.document import Document, CollectionDocumentLink
+from dependencies import get_current_active_user, get_embedding_provider
+from models.document import Document, CollectionDocumentLink, DocumentChunk
 from models.user import User, Collection
 from schemas.document import (
     DocumentResponseSchema,
-    DocumentUploadResponseSchema,
+    DocumentUploadResponseSchema, EmbeddedSearchRequest
 )
 from schemas.base import StandardResponse, ResponseLevel
 from helpers import upload_file_to_s3, get_s3_storage
 from kafka.publisher import publish_document_uploaded, publish_document_textracted, publish_document_chunked
+from shared.embeddings.provider import EmbeddingProvider
 
 router = APIRouter(
     prefix="/documents",
@@ -351,4 +352,75 @@ async def delete_document(
         level=ResponseLevel.SUCCESS,
         detail="Document deleted successfully",
         results=None,
+    )
+
+
+# ---------------------------------------------------------
+# Search in embedded documents
+# ---------------------------------------------------------
+# ---------------------------------------------------------
+# Search in embedded documents
+# ---------------------------------------------------------
+
+@router.post(
+    "/embedded_search",
+    status_code=status.HTTP_200_OK,
+    response_model=StandardResponse,
+)
+async def embedded_search(
+    payload: EmbeddedSearchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
+):
+    # 1️⃣ Convert query text to embedding
+    query_embedding = await embedding_provider.embed([payload.query])
+    query_vector = query_embedding[0]  # pgvector expects single vector
+
+    # 2️⃣ Build similarity search query with ownership validation
+    search_stmt = (
+        select(
+            DocumentChunk,
+            Document.uuid.label("document_uuid"),
+            DocumentChunk.embedding.cosine_distance(query_vector).label("distance"),
+        )
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .where(
+            Document.user_id == current_user.id,
+            Document.is_deleted == False,
+        )
+    )
+
+    # Optional document filter
+    if payload.document_uuid:
+        search_stmt = search_stmt.where(Document.uuid == payload.document_uuid)
+
+    # Add ordering + limit
+    search_stmt = (
+        search_stmt
+        .order_by("distance")
+        .limit(payload.top_k)
+    )
+
+    result = await db.execute(search_stmt)
+    rows = result.all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No matching chunks found")
+
+    # 3️⃣ Format results
+    chunks = [
+        {
+            "chunk_id": row.DocumentChunk.id,
+            "text": row.DocumentChunk.text,
+            "document_uuid": row.document_uuid,
+            "distance": float(row.distance),
+        }
+        for row in rows
+    ]
+
+    return StandardResponse(
+        level=ResponseLevel.SUCCESS,
+        detail="Similarity search successful",
+        results=chunks,
     )

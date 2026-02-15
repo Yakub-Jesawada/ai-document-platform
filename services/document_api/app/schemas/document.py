@@ -87,3 +87,9 @@ class CollectionDocumentResponseSchema(BaseModel):
 class FileItem(BaseModel):
     filename: str
     category: str
+
+
+class EmbeddedSearchRequest(BaseModel):
+    document_uuid: Optional[UUID] = None
+    query: str
+    top_k: int = 5

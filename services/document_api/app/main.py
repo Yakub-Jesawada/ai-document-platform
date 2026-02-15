@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from database import engine, settings
 from routes import auth, user, document, collection
 from shared.kafka.producer import start_producer, stop_producer
+from core.embedding import embedding_provider
 
 app = FastAPI(
     title="API services for document processing platform",
@@ -20,6 +21,16 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await stop_producer()
+
+
+@app.on_event("startup")
+async def startup():
+    await embedding_provider.start()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await embedding_provider.close()
+
 
 # Include routers
 app.include_router(auth.router)

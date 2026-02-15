@@ -9,6 +9,7 @@ from sqlalchemy import select
 from database import settings, get_db
 from models.user import User
 from schemas.auth import TokenData
+from core.embedding import embedding_provider
 
 # Authentication configuration
 SECRET_KEY = settings.SECRET_KEY
@@ -128,3 +129,6 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+def get_embedding_provider():
+    return embedding_provider
