@@ -90,6 +90,7 @@ class FileItem(BaseModel):
 
 
 class EmbeddedSearchRequest(BaseModel):
+    collection_uuid: Optional[UUID] = None
     document_uuid: Optional[UUID] = None
     query: str
     top_k: int = 5

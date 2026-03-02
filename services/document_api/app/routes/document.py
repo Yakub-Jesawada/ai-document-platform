@@ -358,9 +358,6 @@ async def delete_document(
 # ---------------------------------------------------------
 # Search in embedded documents
 # ---------------------------------------------------------
-# ---------------------------------------------------------
-# Search in embedded documents
-# ---------------------------------------------------------
 
 @router.post(
     "/embedded_search",
@@ -390,6 +387,19 @@ async def embedded_search(
             Document.is_deleted == False,
         )
     )
+
+    # Optional collection filter
+    if payload.collection_uuid:
+        search_stmt = (
+            search_stmt
+            .join(CollectionDocumentLink, CollectionDocumentLink.document_id == Document.id)
+            .join(Collection, Collection.id == CollectionDocumentLink.collection_id)
+            .where(
+                Collection.uuid == payload.collection_uuid,
+                Collection.user_id == current_user.id,
+                Collection.is_deleted == False,
+            )
+        )
 
     # Optional document filter
     if payload.document_uuid:
