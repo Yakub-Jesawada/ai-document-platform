@@ -6,7 +6,7 @@ from shared.events.document_chunked import DocumentChunked
 from shared.constant import DOCUMENT_CHUNKED
 from workers.common.env import KAFKA_BROKER_URL, EMBEDDING_WORKER_TOPIC
 from workers.embedding_worker.handler import handle_document_embedding
-from workers.embedding_worker.embedding_provider import get_embedding_provider
+from services.shared.embeddings.provider import get_embedding_provider
 
 logger = logging.getLogger(__name__)
 

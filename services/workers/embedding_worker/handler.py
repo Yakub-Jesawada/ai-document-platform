@@ -5,7 +5,7 @@ from shared.events.document_chunked import DocumentChunked
 from workers.common.database import get_kafka_db_session
 from workers.common.helper import get_document_id
 from workers.common.model import Document, ProcessingStatus, DocumentChunk
-from workers.embedding_worker.embedding_provider import EmbeddingProvider
+from services.shared.embeddings.provider import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
