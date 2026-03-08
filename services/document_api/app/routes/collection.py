@@ -142,12 +142,6 @@ async def add_documents_to_collection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if not payload.document_uuids:
-        raise HTTPException(
-            status_code=400,
-            detail="document_uuids cannot be empty",
-        )
-
     # Fetch collection
     stmt = select(Collection).where(
         Collection.uuid == collection_uuid,
@@ -202,9 +196,6 @@ async def remove_documents_from_collection(
     Remove document(s) from a collection only.
     Document itself is not deleted and may exist in other collections.
     """
-    if not payload.document_uuids:
-        raise HTTPException(status_code=400, detail="document_uuids cannot be empty")
-
     # Fetch collection
     stmt = select(Collection).where(
         Collection.uuid == collection_uuid,
