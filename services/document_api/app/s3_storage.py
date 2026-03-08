@@ -1,17 +1,22 @@
+import os
+import logging
 import boto3
 from botocore.exceptions import ClientError
 from typing import Optional
-from env import S3_ACCESS_KEY, S3_BUCKET_NAME, S3_BUCKET_REGION, S3_SECRET_ACCESS_KEY
+from config import settings
+
+logger = logging.getLogger(__name__)
+
 
 class S3Storage:
     def __init__(self, location: str = ""):
         self.s3 = boto3.client(
             "s3",
-            aws_access_key_id=S3_ACCESS_KEY,
-            aws_secret_access_key=S3_SECRET_ACCESS_KEY,
-            region_name=S3_BUCKET_REGION,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+            region_name=settings.S3_BUCKET_REGION,
         )
-        self.bucket_name = S3_BUCKET_NAME
+        self.bucket_name = settings.S3_BUCKET_NAME
         self.location = location
 
     def _get_s3_key(self, filename: str):
@@ -31,13 +36,10 @@ class S3Storage:
             )
             return url
         except ClientError:
+            logger.exception("Failed to generate presigned URL for key: %s", key)
             return None
-    
+
     def delete_file(self, key: str) -> bool:
-        """
-        Delete a file from S3 using its key.
-        Returns True if delete request succeeded.
-        """
         try:
             self.s3.delete_object(
                 Bucket=self.bucket_name,
@@ -45,17 +47,8 @@ class S3Storage:
             )
             return True
         except ClientError:
+            logger.exception("Failed to delete S3 object: %s", key)
             return False
-
-
-class StaticStorage(S3Storage):
-    def __init__(self):
-        super().__init__(location="static", default_acl="public-read")
-
-
-class MediaStorage(S3Storage):
-    def __init__(self):
-        super().__init__(location="media")
 
 
 class DocumentStorage(S3Storage):
