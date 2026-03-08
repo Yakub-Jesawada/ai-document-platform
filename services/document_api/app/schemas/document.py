@@ -12,10 +12,6 @@ class DocumentCreate(BaseModel):
     page_count: Optional[int] = None
 
 
-class CollectionAddDocuments(BaseModel):
-    document_uuids: List[UUID]
-
-
 class DocumentResponseSchema(BaseModel):
     uuid: UUID
     filename: str
@@ -62,7 +58,7 @@ class CollectionCreate(BaseModel):
 
 
 class CollectionAddDocuments(BaseModel):
-    document_uuids: Optional[List[UUID]] = Field(default_factory=list)
+    document_uuids: List[UUID] = Field(min_length=1)
 
 
 
