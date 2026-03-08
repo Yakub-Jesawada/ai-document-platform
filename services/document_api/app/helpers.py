@@ -25,8 +25,7 @@ async def upload_file_to_s3(
     """
     s3 = get_s3_storage()
 
-    filename = f"{file.filename}"
-    s3_key = f"documents/{user_uuid}/{filename}"
+    s3_key = f"documents/{user_uuid}/{file.filename}"
 
     with NamedTemporaryFile(delete=False) as tmp:
         tmp.write(await file.read())

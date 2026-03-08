@@ -1,8 +1,5 @@
-import os
-import json
 from uuid import UUID
 from typing import List, Optional
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -12,21 +9,20 @@ from fastapi import (
     File,
     Form,
 )
-from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
 from database import settings, get_db
 from dependencies import get_current_active_user, get_embedding_provider
-from models.document import Document, CollectionDocumentLink, DocumentChunk
+from models.document import Document, CollectionDocumentLink, DocumentChunk, UploadStatus
 from models.user import User, Collection
 from schemas.document import (
     DocumentResponseSchema,
     DocumentUploadResponseSchema, EmbeddedSearchRequest
 )
 from schemas.base import StandardResponse, ResponseLevel
-from helpers import upload_file_to_s3, get_s3_storage
+from helpers import upload_file_to_s3, get_s3_storage, get_file_extension
 from kafka.publisher import publish_document_uploaded, publish_document_textracted, publish_document_chunked
 from shared.embeddings.provider import EmbeddingProvider
 
@@ -42,8 +38,20 @@ BASE_FILE_PATH = settings.BASE_FILE_PATH
 # Helpers
 # ---------------------------------------------------------
 
-def get_file_extension(filename: str) -> str:
-    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+async def get_user_document(
+    db: AsyncSession, document_uuid: UUID, user_id: int
+) -> Document:
+    result = await db.execute(
+        select(Document).where(
+            Document.uuid == document_uuid,
+            Document.user_id == user_id,
+            Document.is_deleted == False,
+        )
+    )
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
 
 
 async def get_or_create_default_collection(
@@ -116,7 +124,7 @@ async def upload_documents(
             filename=file.filename,
             file_type=get_file_extension(file.filename),
             document_category=document_category,
-            upload_status="uploaded",
+            upload_status=UploadStatus.UPLOADED,
             storage_uri=s3_key,   # ✅ stable S3 key
         )
 
@@ -191,19 +199,7 @@ async def get_document_detail(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id,
-        Document.is_deleted == False,
-    )
-
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    await publish_document_uploaded(document, current_user)
+    document = await get_user_document(db, document_uuid, current_user.id)
 
     return StandardResponse(
         level=ResponseLevel.SUCCESS,
@@ -226,16 +222,7 @@ async def trigger_ocr(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id,
-        Document.is_deleted == False,
-    )
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+    document = await get_user_document(db, document_uuid, current_user.id)
 
     await publish_document_uploaded(document, current_user)
 
@@ -260,16 +247,7 @@ async def trigger_chunking(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id,
-        Document.is_deleted == False,
-    )
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+    document = await get_user_document(db, document_uuid, current_user.id)
 
     await publish_document_textracted(document)
 
@@ -294,16 +272,7 @@ async def trigger_embedding(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(Document).where(
-        Document.uuid == document_uuid,
-        Document.user_id == current_user.id,
-        Document.is_deleted == False,
-    )
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+    document = await get_user_document(db, document_uuid, current_user.id)
 
     await publish_document_chunked(document)
 
