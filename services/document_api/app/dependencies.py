@@ -29,13 +29,8 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-# Database query function to get user by email
+# Database query functions
 async def get_user_by_email(db: AsyncSession, email: str):
-    query = select(User).where(User.email == email)
-    result = await db.execute(query)
-    return result.scalar_one_or_none()
-
-async def get_user(db: AsyncSession, email: str):
     query = select(User).where(User.email == email)
     result = await db.execute(query)
     return result.scalar_one_or_none()
@@ -47,15 +42,6 @@ async def get_user_by_id(db: AsyncSession, user_id: int):
 
 # User authentication function
 async def authenticate_user(db: AsyncSession, email: str, password: str):
-    user = await get_user(db, email)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
-
-
-async def authenticate_user_by_email(db: AsyncSession, email: str, password: str):
     user = await get_user_by_email(db, email)
     if not user:
         return False
@@ -64,26 +50,17 @@ async def authenticate_user_by_email(db: AsyncSession, email: str, password: str
     return user
 
 # JWT token generation
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def _create_token(data: dict, token_type: str, default_lifetime: timedelta, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    expire = datetime.now(timezone.utc) + (expires_delta or default_lifetime)
+    to_encode.update({"exp": expire, "type": token_type})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    return _create_token(data, "access", timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), expires_delta)
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return _create_token(data, "refresh", timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), expires_delta)
 
 
 def verify_refresh_token(token: str) -> Optional[str]:
@@ -117,7 +94,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     # Get user from database
-    user = await get_user(db, email=token_data.email)
+    user = await get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
     return user
