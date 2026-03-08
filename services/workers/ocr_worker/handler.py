@@ -1,19 +1,16 @@
+import logging
+from uuid import uuid4
+from datetime import datetime, timezone
+
 from shared.events.document_uploaded import DocumentUploaded
 from shared.events.document_textracted import DocumentTextracted
 from sqlmodel import select
 from workers.common.database import get_kafka_db_session
 from workers.common.model import Document, ProcessingStatus
-from datetime import datetime, timezone
+from workers.common.helper import mark_document_failed
 from workers.common.document_processor_registry import PROCESSOR_REGISTRY
 from shared.constant import DOCUMENT_TEXTRACTED
 from shared.kafka.producer import require_producer
-import logging
-from uuid import uuid4
-
-from pathlib import Path
-
-# Directory of the current file
-current_dir = Path(__file__).resolve().parent
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +49,8 @@ async def handle_document_upload(event: DocumentUploaded):
         await producer.send_and_wait(DOCUMENT_TEXTRACTED, event.model_dump(mode="json"))
 
     except Exception:
-        async with get_kafka_db_session() as session:
-            stmt = select(Document).where(Document.uuid == document_uuid)
-            result = await session.execute(stmt)
-            document = result.scalar_one_or_none()
-
-            if document:
-                document.status = ProcessingStatus.OCR_FAILED
-                document.ocr_completed = False
-                await session.commit()
+        logger.exception("OCR failed for document %s", document_uuid)
+        await mark_document_failed(
+            document_uuid, ProcessingStatus.OCR_FAILED, ocr_completed=False
+        )
         raise

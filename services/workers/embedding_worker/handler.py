@@ -3,7 +3,7 @@ from sqlmodel import select
 
 from shared.events.document_chunked import DocumentChunked
 from workers.common.database import get_kafka_db_session
-from workers.common.helper import get_document_id
+from workers.common.helper import get_document_id, mark_document_failed
 from workers.common.model import Document, ProcessingStatus, DocumentChunk
 from services.shared.embeddings.provider import EmbeddingProvider
 
@@ -40,7 +40,6 @@ async def handle_document_embedding(
                 batch = texts[i:i + EMBEDDING_BATCH_SIZE]
                 embeddings.extend(await provider.embed(batch))
 
-            # 🔥 SAME SESSION → ORM tracks changes
             for chunk, embedding in zip(chunks, embeddings):
                 chunk.embedding = embedding
 
@@ -59,15 +58,8 @@ async def handle_document_embedding(
         logger.info("Embedding completed for %s", document_uuid)
 
     except Exception:
-        async with get_kafka_db_session() as session:
-            document = (
-                await session.execute(
-                    select(Document).where(Document.uuid == document_uuid)
-                )
-            ).scalar_one_or_none()
-
-            if document:
-                document.status = ProcessingStatus.EMBEDDING_FAILED
-                document.embedding_completed = False
-                await session.commit()
+        logger.exception("Embedding failed for document %s", document_uuid)
+        await mark_document_failed(
+            document_uuid, ProcessingStatus.EMBEDDING_FAILED, embedding_completed=False
+        )
         raise
