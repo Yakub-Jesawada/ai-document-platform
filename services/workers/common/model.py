@@ -1,13 +1,12 @@
 from typing import Optional, Dict, Any
 from enum import Enum
-from uuid import UUID
+from uuid import UUID, uuid4
+from datetime import datetime
 
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Enum as SAEnum
-from uuid import UUID, uuid4
-from datetime import datetime
 from pgvector.sqlalchemy import Vector
 
 class BaseModel(SQLModel):
@@ -26,12 +25,6 @@ class TimeMixin:
     """Provides automatic timestamp columns."""
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-
-
-class UserMixin:
-    """Tracks which user created/updated the record."""
-    created_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    updated_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
 
 
 # ======================================================

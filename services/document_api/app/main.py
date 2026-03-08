@@ -1,35 +1,31 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from database import engine, settings
 from routes import auth, user, document, collection
 from shared.kafka.producer import start_producer, stop_producer
 from core.embedding import embedding_provider
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await start_producer()
+    await embedding_provider.start()
+    yield
+    await stop_producer()
+    await embedding_provider.close()
+
+
 app = FastAPI(
     title="API services for document processing platform",
     version="0.1.0",
-    debug=settings.DEBUG
+    debug=settings.DEBUG,
+    lifespan=lifespan,
 )
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
-
-@app.on_event("startup")
-async def startup():
-    await start_producer()
-
-@app.on_event("shutdown")
-async def shutdown():
-    await stop_producer()
-
-
-@app.on_event("startup")
-async def startup():
-    await embedding_provider.start()
-
-@app.on_event("shutdown")
-async def shutdown():
-    await embedding_provider.close()
 
 
 # Include routers

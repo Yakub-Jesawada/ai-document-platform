@@ -27,12 +27,13 @@ async def consume():
 
     try:
         async for msg in consumer:
-            payload = msg.value
-
-            if payload.get("event_type") == DOCUMENT_CHUNKED:
-                event = DocumentChunked(**payload)
-                await handle_document_embedding(event, provider)
-
+            try:
+                payload = msg.value
+                if payload.get("event_type") == DOCUMENT_CHUNKED:
+                    event = DocumentChunked(**payload)
+                    await handle_document_embedding(event, provider)
+            except Exception:
+                logger.exception("Failed to process message at offset %s", msg.offset)
     finally:
         await consumer.stop()
         await provider.close()   # ✅ clean shutdown

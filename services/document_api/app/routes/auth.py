@@ -6,7 +6,7 @@ import logging
 from config import settings
 from database import get_db
 from dependencies import (
-    authenticate_user_by_email,
+    authenticate_user,
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
@@ -39,7 +39,7 @@ async def login(
     """
     Authenticate user with email and password, returns JWT access and refresh tokens.
     """
-    user = await authenticate_user_by_email(db, login_data.email, login_data.password)
+    user = await authenticate_user(db, login_data.email, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

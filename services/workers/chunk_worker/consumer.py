@@ -24,12 +24,13 @@ async def consume():
 
     try:
         async for msg in consumer:
-            payload = msg.value
-
-            if payload.get("event_type") == DOCUMENT_TEXTRACTED:
-                event = DocumentTextracted(**payload)
-                await handle_document_chunking(event)
-
+            try:
+                payload = msg.value
+                if payload.get("event_type") == DOCUMENT_TEXTRACTED:
+                    event = DocumentTextracted(**payload)
+                    await handle_document_chunking(event)
+            except Exception:
+                logger.exception("Failed to process message at offset %s", msg.offset)
     finally:
         await consumer.stop()
         await stop_producer()
