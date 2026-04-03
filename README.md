@@ -20,6 +20,3 @@ This platform is designed to support **multiple document types** (resumes, legal
 - 🐳 Fully containerized using Docker & Docker Compose
 
 ---
-
-## 🧠 Architecture Overview
-
