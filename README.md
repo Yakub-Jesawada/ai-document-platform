@@ -236,7 +236,7 @@ The platform is being built in phases:
 | 2 | Kafka async pipeline | Done |
 | 3 | OCR + text extraction | Done |
 | 4 | Chunking + pgvector semantic search | Done |
-| 5 | Entity extraction pipeline | Done |
+| 5 | Entity extraction pipeline | Upcoming |
 | 6 | MCP-based AI agent | In Progress |
 | 7 | Collection-level multi-document reasoning | Upcoming |
 | 8 | Redis caching + performance | Upcoming |
